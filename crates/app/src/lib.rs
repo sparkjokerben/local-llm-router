@@ -15,6 +15,8 @@ pub struct AppState {
 pub fn run() {
     let logs = logs::setup();
     tauri::Builder::default()
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState {
             gateway: gateway_host::GatewayHost::new(),
             config_path: default_config_path(),

@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
+import type { Update } from "@tauri-apps/plugin-updater";
 import type { Config, StatusInfo } from "./types";
-import { getConfig, getStatus, saveConfig, startGateway } from "./lib/api";
+import { checkForUpdate, getConfig, getStatus, installUpdate, saveConfig, startGateway } from "./lib/api";
 import { ProvidersPage } from "./pages/Providers";
 import { RoutesPage } from "./pages/Routes";
 import { IntegrationPage } from "./pages/Integration";
 import { LogsPage } from "./pages/Logs";
-import { Button, EmptyState, Toast, cls } from "./components/ui";
+import { Button, EmptyState, Modal, Spinner, Toast, cls } from "./components/ui";
 
 type Page = "providers" | "routes" | "integration" | "logs";
 
@@ -40,6 +41,7 @@ export default function App() {
   const [status, setStatus] = useState<StatusInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
+  const [update, setUpdate] = useState<Update | null>(null);
 
   const refreshStatus = useCallback(async () => {
     setStatus(await getStatus().catch(() => null));
@@ -62,6 +64,17 @@ export default function App() {
     setToast(msg);
     setTimeout(() => setToast(null), 2000);
   }, []);
+
+  // 启动时静默检查更新
+  useEffect(() => {
+    checkForUpdate().then((u) => u && setUpdate(u));
+  }, []);
+
+  const checkUpdates = useCallback(async () => {
+    const u = await checkForUpdate();
+    if (u) setUpdate(u);
+    else showToast("已是最新版本或暂无可用更新");
+  }, [showToast]);
 
   const persist = useCallback(
     async (next: Config) => {
@@ -197,7 +210,7 @@ export default function App() {
               ) : page === "routes" ? (
                 <RoutesPage config={config} persist={persist} />
               ) : page === "integration" ? (
-                <IntegrationPage status={status} refresh={refreshStatus} />
+                <IntegrationPage status={status} refresh={refreshStatus} checkUpdates={checkUpdates} />
               ) : (
                 <LogsPage />
               )}
@@ -207,7 +220,86 @@ export default function App() {
       </main>
 
       <Toast message={toast} />
+      {update ? <UpdateModal update={update} onClose={() => setUpdate(null)} /> : null}
     </div>
+  );
+}
+
+const UPDATE_ERROR_HINT = "更新失败。绿色版/开发版暂不支持应用内更新，请到 Releases 页手动下载：https://github.com/sparkjokerben/local-llm-router/releases";
+
+function UpdateModal({ update, onClose }: { update: Update; onClose: () => void }) {
+  const [phase, setPhase] = useState<"idle" | "downloading" | "error">("idle");
+  const [pct, setPct] = useState<number | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const start = async () => {
+    setPhase("downloading");
+    setPct(null);
+    setErr(null);
+    try {
+      await installUpdate(update, setPct);
+    } catch (ex) {
+      setPhase("error");
+      setErr(String(ex));
+    }
+  };
+
+  const busy = phase === "downloading";
+
+  return (
+    <Modal open onClose={busy ? () => {} : onClose} title="发现新版本">
+      <div className="space-y-4">
+        <p className="text-sm text-zinc-300">
+          新版本 <span className="font-mono font-semibold text-violet-300">v{update.version}</span> 可用，一键升级到最新版本。
+        </p>
+
+        {update.body ? (
+          <div className="max-h-40 overflow-y-auto whitespace-pre-wrap rounded-xl border border-white/[0.06] bg-black/20 p-3 text-xs leading-relaxed text-zinc-400">
+            {update.body}
+          </div>
+        ) : null}
+
+        {busy ? (
+          <div>
+            <div className="flex items-center justify-between text-xs text-zinc-500">
+              <span className="flex items-center gap-2">
+                <Spinner /> 正在下载更新…
+              </span>
+              {pct !== null ? <span>{pct}%</span> : null}
+            </div>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+              <div
+                className={cls(
+                  "h-full rounded-full bg-gradient-to-r from-indigo-500 to-fuchsia-500 transition-all duration-300",
+                  pct === null ? "w-1/3 animate-pulse" : "",
+                )}
+                style={pct !== null ? { width: `${pct}%` } : undefined}
+              />
+            </div>
+          </div>
+        ) : null}
+
+        {phase === "error" && err ? (
+          <div className="space-y-2">
+            <p className="text-sm text-red-400">{err}</p>
+            <p className="text-xs leading-relaxed text-zinc-500">{UPDATE_ERROR_HINT}</p>
+          </div>
+        ) : null}
+
+        <div className="flex justify-end gap-2 pt-1">
+          <Button variant="secondary" onClick={onClose} disabled={busy}>
+            稍后
+          </Button>
+          {phase === "error" ? (
+            <Button onClick={start}>重试</Button>
+          ) : (
+            <Button onClick={start} disabled={busy}>
+              {busy ? "更新中…" : "立即更新"}
+            </Button>
+          )}
+        </div>
+      </div>
+    </Modal>
   );
 }
 

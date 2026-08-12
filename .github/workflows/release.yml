@@ -37,9 +37,36 @@ jobs:
       - name: 安装 Tauri CLI
         run: npm install -g @tauri-apps/cli@^2
 
-      - name: 构建 NSIS 安装版
+      - name: 构建并签名 NSIS 安装版
         working-directory: crates/app
+        env:
+          # 更新签名私钥（生成后无法找回，丢失将无法发布更新）
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
         run: tauri build --bundles nsis
+
+      - name: 生成更新清单 latest.json
+        shell: pwsh
+        run: |
+          $bundleDir = "${{ github.workspace }}/target/release/bundle/nsis"
+          $exe = Get-ChildItem "$bundleDir/*-setup.exe" | Select-Object -First 1
+          $sig = (Get-Content "$($exe.FullName).sig" -Raw).Trim()
+          $cfg = Get-Content "crates/app/tauri.conf.json" -Raw | ConvertFrom-Json
+          $tag = "${{ github.ref_name }}"
+          $manifest = @{
+            version = $cfg.version
+            notes = ""
+            pub_date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+            platforms = @{
+              "windows-x86_64" = @{
+                signature = $sig
+                url = "https://github.com/sparkjokerben/local-llm-router/releases/download/$tag/$([uri]::EscapeDataString($exe.Name))"
+              }
+            }
+          }
+          $manifest | ConvertTo-Json -Depth 5 | Set-Content "${{ github.workspace }}/target/release/bundle/latest.json"
+          Write-Host "latest.json:"
+          Get-Content "${{ github.workspace }}/target/release/bundle/latest.json"
 
       - name: 打包绿色版（免安装 zip）
         shell: pwsh
@@ -53,6 +80,8 @@ jobs:
           name: windows-bundles
           path: |
             ${{ github.workspace }}/target/release/bundle/nsis/*-setup.exe
+            ${{ github.workspace }}/target/release/bundle/nsis/*.sig
+            ${{ github.workspace }}/target/release/bundle/latest.json
             ${{ github.workspace }}/LLM-Router-portable-win-x64.zip
           if-no-files-found: error
 
@@ -62,5 +91,7 @@ jobs:
         with:
           files: |
             ${{ github.workspace }}/target/release/bundle/nsis/*-setup.exe
+            ${{ github.workspace }}/target/release/bundle/nsis/*.sig
+            ${{ github.workspace }}/target/release/bundle/latest.json
             ${{ github.workspace }}/LLM-Router-portable-win-x64.zip
           generate_release_notes: true

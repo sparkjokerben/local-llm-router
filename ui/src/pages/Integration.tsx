@@ -6,9 +6,11 @@ import { Badge, Button, Card, cls, Spinner } from "../components/ui";
 export function IntegrationPage({
   status,
   refresh,
+  checkUpdates,
 }: {
   status: StatusInfo | null;
   refresh: () => void;
+  checkUpdates: () => void;
 }) {
   const [importing, setImporting] = useState(false);
   const [url, setUrl] = useState<string | null>(null);
@@ -58,6 +60,9 @@ export function IntegrationPage({
                   </span>
                   {status.reachable ? "运行中" : "未运行"}
                 </Badge>
+                <Button variant="secondary" onClick={checkUpdates}>
+                  检查更新
+                </Button>
                 <Button variant="secondary" onClick={refresh}>
                   刷新
                 </Button>

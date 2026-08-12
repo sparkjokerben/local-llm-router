@@ -96,4 +96,18 @@ git tag v0.2.0
 git push origin v0.2.0
 ```
 
-3. [Actions](https://github.com/sparkjokerben/local-llm-router/actions) 自动在 `windows-latest` 构建，产出**安装版 + 绿色版**并发布到 Releases。也可以手动触发 `workflow_dispatch`（只出构建产物，不建 Release）。
+3. [Actions](https://github.com/sparkjokerben/local-llm-router/actions) 自动在 `windows-latest` 构建，产出**安装版（含签名）+ 绿色版 + 更新清单 latest.json** 并发布到 Releases。已安装用户的应用内更新会在启动时自动检测到新版本。也可以手动触发 `workflow_dispatch`（只出构建产物，不建 Release）。
+
+### 更新签名私钥（重要）
+
+安装版的应用内更新通过签名校验包完整性，签名私钥 `TAURI_SIGNING_PRIVATE_KEY` 存于仓库 secret：
+
+```bash
+# 重新生成（仅丢失时执行；换 key 后老版本将无法更新，需重新安装）
+npx tauri signer generate -w ~/.tauri/llm-router.key --ci
+gh secret set TAURI_SIGNING_PRIVATE_KEY < ~/.tauri/llm-router.key
+
+# 私钥公钥同步更新到 crates/app/tauri.conf.json 的 plugins.updater.pubkey
+```
+
+**私钥（含密码）丢失将永远无法发布新更新**，请备份 `~/.tauri/llm-router.key`。

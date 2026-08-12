@@ -84,19 +84,31 @@ cd crates/app && npx tauri dev     # GUI 开发模式（HMR）
 cd crates/app && npx tauri build   # 打包 NSIS 安装版
 ```
 
-## 发布发行版（GitHub Actions）
+## 自动更新
 
-推 tag 即自动构建并发布安装版 + 绿色版：
+安装版内置应用内更新：
+
+- **启动时自动检查**新版本（静默），发现后弹窗提示；集成页也有「检查更新」按钮手动触发
+- 点击「立即更新」→ 下载新版安装包（带进度条）→ 校验签名 → 静默安装 → 自动重启
+- 更新源为 GitHub Releases（`releases/latest/download/latest.json`），更新包使用内嵌公钥验签，防篡改
+- **绿色版/开发版不能应用内自我升级**（插件仅支持 NSIS 安装版），检测到更新会提示到 Releases 页手动下载
+
+### 发布新版本
+
+推 tag 即自动构建、签名并发布安装版 + 绿色版 + 更新清单：
 
 ```bash
-git tag v0.1.0 && git push origin v0.1.0
+git tag v0.1.1 && git push origin v0.1.1
 ```
 
 工作流 [.github/workflows/release.yml](.github/workflows/release.yml) 在 `windows-latest` 上：
-1. 构建前端 + Rust release 二进制
-2. `tauri build --bundles nsis` 产出 NSIS 安装版
-3. `Compress-Archive` 打包绿色版 zip
-4. 打 tag 时上传到 GitHub Release（`workflow_dispatch` 手动触发则只出 Actions 产物）
+1. 构建前端 + Rust release 二进制（注入 `TAURI_SIGNING_PRIVATE_KEY` 自动签名安装包）
+2. `tauri build --bundles nsis` 产出 NSIS 安装版 + `.sig` 签名
+3. 生成更新清单 `latest.json`（版本 / 签名 / 下载 URL）
+4. `Compress-Archive` 打包绿色版 zip
+5. 打 tag 时上传 `-setup.exe`、`.sig`、`latest.json`、zip 到 GitHub Release
+
+> 更新签名私钥存在仓库级 secret `TAURI_SIGNING_PRIVATE_KEY`（本地备份在 `~/.tauri/llm-router.key`，**私钥丢失将无法发布更新**）。
 
 ## 目录结构
 
