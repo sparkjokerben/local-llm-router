@@ -1,0 +1,18 @@
+{
+  "host": "127.0.0.1",
+  "port": 8338,
+  "client_token": "",
+  "providers": [
+    { "id": "deepseek", "name": "DeepSeek", "base_url": "https://api.deepseek.com/anthropic", "api_key": "sk-REPLACE-WITH-DEEPSEEK-KEY", "auth_type": "bearer" },
+    { "id": "qwen", "name": "Qwen Bailian", "base_url": "https://coding.dashscope.aliyuncs.com/apps/anthropic", "api_key": "sk-REPLACE-WITH-QWEN-KEY", "auth_type": "bearer" },
+    { "id": "glm", "name": "GLM Zhipu", "base_url": "https://open.bigmodel.cn/api/anthropic", "api_key": "REPLACE-WITH-GLM-KEY", "auth_type": "bearer" },
+    { "id": "kimi", "name": "Kimi Moonshot", "base_url": "https://api.moonshot.cn/anthropic", "api_key": "sk-REPLACE-WITH-KIMI-KEY", "auth_type": "bearer" }
+  ],
+  "routes": [
+    { "model": "deepseek-v4-flash", "provider": "deepseek" },
+    { "model": "deepseek-v4-pro", "provider": "deepseek" },
+    { "model": "qwen3.5-plus", "provider": "qwen" },
+    { "model": "glm-5", "provider": "glm" },
+    { "model": "*", "provider": "deepseek" }
+  ]
+}

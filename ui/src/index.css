@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-[#07070c] text-zinc-200 antialiased;
+  font-family:
+    "Inter",
+    "PingFang SC",
+    "Microsoft YaHei",
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    sans-serif;
+  overflow: hidden;
+}
+
+/* Gradient mesh backdrop */
+.app-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(55% 45% at 12% -5%, rgba(99, 102, 241, 0.16), transparent 60%),
+    radial-gradient(45% 40% at 88% 5%, rgba(168, 85, 247, 0.11), transparent 60%),
+    radial-gradient(50% 45% at 50% 110%, rgba(34, 211, 238, 0.06), transparent 60%),
+    #07070c;
+}
+
+.glass {
+  @apply border border-white/[0.08] bg-white/[0.03] backdrop-blur-xl;
+}
+
+/* Native <option> popup must have explicit colors on WebView2 dark theme */
+select option {
+  color: #e4e4e7;
+  background-color: #12141d;
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-up {
+  animation: fadeUp 0.35s ease both;
+}
+
+@keyframes pulseDot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+.animate-pulse-dot {
+  animation: pulseDot 2s ease-in-out infinite;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply rounded-full bg-white/10;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-white/20;
+}
+
+::selection {
+  @apply bg-violet-500/40 text-white;
+}

@@ -1,0 +1,20 @@
+# 构建产物
+/target
+ui/dist/
+ui/node_modules/
+node_modules/
+
+# 本地配置（含 API key，绝不入库）
+config.json
+*.local.json
+
+# 会话与日志
+*.log
+.claude/
+
+# tauri 构建生成的 schema
+crates/app/gen/
+
+# 系统文件
+.DS_Store
+Thumbs.db

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "LLM Router",
+  "version": "0.1.0",
+  "identifier": "com.llmrouter.app",
+  "build": {
+    "beforeDevCommand": "npm run dev --prefix ../ui",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build --prefix ../ui",
+    "frontendDist": "../../ui/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "LLM Router",
+        "width": 1200,
+        "height": 780,
+        "minWidth": 960,
+        "minHeight": 620,
+        "resizable": true,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}
