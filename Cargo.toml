@@ -3,5 +3,5 @@ resolver = "2"
 members = ["crates/gateway", "crates/app"]
 
 [workspace.package]
-version = "0.1.3"
+version = "0.1.4"
 edition = "2021"
