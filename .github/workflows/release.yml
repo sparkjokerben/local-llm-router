@@ -45,21 +45,25 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
         run: tauri build --bundles nsis
 
-      - name: 规范化产物文件名并生成更新清单 latest.json
+      - name: 规范化产物文件名（GitHub 上传资产会把空格换成点，统一无空格）
         shell: pwsh
         run: |
           $bundleDir = "${{ github.workspace }}/target/release/bundle/nsis"
           $cfg = Get-Content "crates/app/tauri.conf.json" -Raw | ConvertFrom-Json
-          $tag = "${{ github.ref_name }}"
-          # GitHub 上传资产时会把空格换成点，统一改为无空格文件名，保证 latest.json 的 URL 与资产名一致
           $exe = Get-ChildItem "$bundleDir/*-setup.exe" | Select-Object -First 1
           $canon = "LLM-Router_$($cfg.version)-x64-setup.exe"
           if ($exe.Name -ne $canon) {
             $sig = Get-ChildItem "$($exe.FullName).sig" -ErrorAction SilentlyContinue
             Rename-Item $exe.FullName $canon
             if ($sig) { Rename-Item $sig.FullName "$canon.sig" }
-            $exe = Get-Item "$bundleDir/$canon"
           }
+
+      - name: 生成更新清单 latest.json（直连 raw.githubusercontent.com 可访问）
+        shell: pwsh
+        run: |
+          $bundleDir = "${{ github.workspace }}/target/release/bundle/nsis"
+          $cfg = Get-Content "crates/app/tauri.conf.json" -Raw | ConvertFrom-Json
+          $exe = Get-ChildItem "$bundleDir/*-setup.exe" | Select-Object -First 1
           $sig = (Get-Content "$($exe.FullName).sig" -Raw).Trim()
           $manifest = @{
             version = $cfg.version
@@ -68,13 +72,30 @@ jobs:
             platforms = @{
               "windows-x86_64" = @{
                 signature = $sig
-                url = "https://github.com/sparkjokerben/local-llm-router/releases/download/$tag/$($exe.Name)"
+                url = "https://raw.githubusercontent.com/sparkjokerben/local-llm-router/main/updates/$($exe.Name)"
               }
             }
           }
           $manifest | ConvertTo-Json -Depth 5 | Set-Content "${{ github.workspace }}/target/release/bundle/latest.json"
           Write-Host "latest.json:"
           Get-Content "${{ github.workspace }}/target/release/bundle/latest.json"
+
+      - name: 同步更新文件到仓库 updates/（应用内更新直连来源）
+        shell: pwsh
+        run: |
+          $bundleDir = "${{ github.workspace }}/target/release/bundle/nsis"
+          $cfg = Get-Content "crates/app/tauri.conf.json" -Raw | ConvertFrom-Json
+          New-Item -ItemType Directory -Force -Path "updates" | Out-Null
+          Get-ChildItem "$bundleDir/*-setup.exe" | Copy-Item -Destination "updates/" -Force
+          Get-ChildItem "$bundleDir/*.sig" | Copy-Item -Destination "updates/" -Force
+          Copy-Item "${{ github.workspace }}/target/release/bundle/latest.json" "updates/latest.json" -Force
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add updates/
+          git commit -m "chore(updates): 发布 $($cfg.version) 更新文件" --quiet
+          git push origin main
+          Write-Host "updates/ 已同步："
+          Get-ChildItem "updates" | Select-Object Name, Length
 
       - name: 打包绿色版（免安装 zip）
         shell: pwsh

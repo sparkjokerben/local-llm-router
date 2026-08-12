@@ -67,13 +67,14 @@ export default function App() {
 
   // 启动时静默检查更新
   useEffect(() => {
-    checkForUpdate().then((u) => u && setUpdate(u));
+    checkForUpdate().then((r) => r.update && setUpdate(r.update));
   }, []);
 
   const checkUpdates = useCallback(async () => {
-    const u = await checkForUpdate();
-    if (u) setUpdate(u);
-    else showToast("已是最新版本或暂无可用更新");
+    const r = await checkForUpdate();
+    if (r.update) setUpdate(r.update);
+    else if (r.ok) showToast("已是最新版本");
+    else showToast("检查更新失败：无法连接更新源，请检查网络后重试");
   }, [showToast]);
 
   const persist = useCallback(

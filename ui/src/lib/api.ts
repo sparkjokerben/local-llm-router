@@ -19,30 +19,48 @@ export const fetchProviderModels = (
 
 // —— 应用更新 ——
 
-/** 检查是否有新版本；网络异常/无更新源时返回 null */
-export const checkForUpdate = async (): Promise<Update | null> => {
-  try {
-    return await check({ timeout: 15000 });
-  } catch {
-    return null;
+export type UpdateCheck = { ok: boolean; update: Update | null };
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** 检查是否有新版本；网络抖动时重试最多 8 次。{ok:false} 表示更新源不可达 */
+export const checkForUpdate = async (): Promise<UpdateCheck> => {
+  for (let i = 0; i < 8; i++) {
+    try {
+      return { ok: true, update: await check({ timeout: 15000 }) };
+    } catch {
+      await sleep(2000);
+    }
   }
+  return { ok: false, update: null };
 };
 
-/** 下载并安装更新，安装完成后重启应用 */
+/** 下载并安装更新（失败自动重试最多 3 次），安装完成后重启应用 */
 export const installUpdate = async (update: Update, onProgress: (pct: number | null) => void) => {
-  let downloaded = 0;
-  let total = 0;
-  await update.downloadAndInstall((event) => {
-    if (event.event === "Started") {
-      total = event.data.contentLength ?? 0;
-    } else if (event.event === "Progress") {
-      downloaded += event.data.chunkLength;
-      onProgress(total > 0 ? Math.round((downloaded / total) * 100) : null);
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let downloaded = 0;
+    let total = 0;
+    try {
+      await update.downloadAndInstall((event) => {
+        if (event.event === "Started") {
+          total = event.data.contentLength ?? 0;
+        } else if (event.event === "Progress") {
+          downloaded += event.data.chunkLength;
+          onProgress(total > 0 ? Math.round((downloaded / total) * 100) : null);
+        }
+      });
+      try {
+        await relaunch();
+      } catch {
+        // 绿色版等无法自动重启：安装已下载到本地，提示用户手动启动
+      }
+      return;
+    } catch (ex) {
+      lastErr = ex;
+      onProgress(null);
+      await sleep(1500);
     }
-  });
-  try {
-    await relaunch();
-  } catch {
-    // 绿色版等无法自动重启：安装已下载到本地，提示用户手动启动
   }
+  throw lastErr;
 };
