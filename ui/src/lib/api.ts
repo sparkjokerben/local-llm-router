@@ -40,10 +40,10 @@ export const checkForUpdate = async (): Promise<UpdateCheck> => {
   return { ok: false, update: null };
 };
 
-/** 下载并安装更新（失败自动重试最多 3 次），安装完成后重启应用 */
+/** 下载并安装更新（失败自动重试最多 8 次，跨约 40s 采样窗口），安装完成后重启应用 */
 export const installUpdate = async (update: Update, onProgress: (pct: number | null) => void) => {
   let lastErr: unknown;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 8; attempt++) {
     let downloaded = 0;
     let total = 0;
     try {
@@ -64,7 +64,7 @@ export const installUpdate = async (update: Update, onProgress: (pct: number | n
     } catch (ex) {
       lastErr = ex;
       onProgress(null);
-      await sleep(1500);
+      await sleep(2000);
     }
   }
   throw lastErr;
