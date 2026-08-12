@@ -23,11 +23,16 @@ export type UpdateCheck = { ok: boolean; update: Update | null };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// 部分网络环境对 github.com 的非浏览器 User-Agent 请求做概率性拦截，
+// 伪装浏览器 UA 规避（检查与下载请求都会带上）
+const BROWSER_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
+
 /** 检查是否有新版本；网络抖动时重试最多 8 次。{ok:false} 表示更新源不可达 */
 export const checkForUpdate = async (): Promise<UpdateCheck> => {
   for (let i = 0; i < 8; i++) {
     try {
-      return { ok: true, update: await check({ timeout: 15000 }) };
+      return { ok: true, update: await check({ timeout: 15000, headers: { "User-Agent": BROWSER_UA } }) };
     } catch {
       await sleep(2000);
     }

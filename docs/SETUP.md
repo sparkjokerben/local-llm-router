@@ -96,7 +96,7 @@ git tag v0.2.0
 git push origin v0.2.0
 ```
 
-3. [Actions](https://github.com/sparkjokerben/local-llm-router/actions) 自动在 `windows-latest` 构建，产出**安装版（含签名）+ 绿色版 + 更新清单 latest.json**：发布到 Releases，并把安装包/签名/清单同步到仓库 `updates/` 目录（应用内更新从 `raw.githubusercontent.com` 直连拉取，不依赖 github.com 主站）。已安装用户的应用内更新会在启动时自动检测到新版本。也可以手动触发 `workflow_dispatch`（只出构建产物，不建 Release）。
+3. [Actions](https://github.com/sparkjokerben/local-llm-router/actions) 自动在 `windows-latest` 构建，产出**安装版（含签名）+ 绿色版 + 更新清单 latest.json** 并发布到 Releases。已安装用户的应用内更新会在启动时自动检测到新版本（应用请求携带浏览器 UA，规避部分网络环境对非浏览器 UA 的概率性拦截）。也可以手动触发 `workflow_dispatch`（只出构建产物，不建 Release）。
 
 ### 更新签名私钥（重要）
 

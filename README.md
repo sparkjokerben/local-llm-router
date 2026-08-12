@@ -90,7 +90,7 @@ cd crates/app && npx tauri build   # 打包 NSIS 安装版
 
 - **启动时自动检查**新版本（静默，最多重试 8 次），发现后弹窗提示；集成页也有「检查更新」按钮手动触发
 - 点击「立即更新」→ 下载新版安装包（带进度条，失败自动重试）→ 校验签名 → 静默安装 → 自动重启
-- 更新文件（安装包 + 签名 + 清单 `latest.json`）随每次发布同步到仓库 `updates/` 目录，经 `raw.githubusercontent.com` 直连获取（无需代理、不依赖 github.com 主站可达性）；更新包使用内嵌公钥验签，防篡改
+- 更新源为 GitHub Releases（`releases/latest/download/latest.json`）；请求携带浏览器 User-Agent（部分网络环境对非浏览器 UA 的连接做概率性拦截）；更新包使用内嵌公钥验签，防篡改
 - **绿色版/开发版不能应用内自我升级**（插件仅支持 NSIS 安装版），检测到更新会提示到 Releases 页手动下载
 
 ### 发布新版本
