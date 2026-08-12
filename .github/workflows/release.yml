@@ -58,11 +58,12 @@ jobs:
             if ($sig) { Rename-Item $sig.FullName "$canon.sig" }
           }
 
-      - name: 生成更新清单 latest.json（直连 raw.githubusercontent.com 可访问）
+      - name: 生成更新清单 latest.json（下载 URL 指向 GitHub Release 资产）
         shell: pwsh
         run: |
           $bundleDir = "${{ github.workspace }}/target/release/bundle/nsis"
           $cfg = Get-Content "crates/app/tauri.conf.json" -Raw | ConvertFrom-Json
+          $tag = "${{ github.ref_name }}"
           $exe = Get-ChildItem "$bundleDir/*-setup.exe" | Select-Object -First 1
           $sig = (Get-Content "$($exe.FullName).sig" -Raw).Trim()
           $manifest = @{
@@ -72,33 +73,13 @@ jobs:
             platforms = @{
               "windows-x86_64" = @{
                 signature = $sig
-                url = "https://raw.githubusercontent.com/sparkjokerben/local-llm-router/main/updates/$($exe.Name)"
+                url = "https://github.com/sparkjokerben/local-llm-router/releases/download/$tag/$($exe.Name)"
               }
             }
           }
           $manifest | ConvertTo-Json -Depth 5 | Set-Content "${{ github.workspace }}/target/release/bundle/latest.json"
           Write-Host "latest.json:"
           Get-Content "${{ github.workspace }}/target/release/bundle/latest.json"
-
-      - name: 同步更新文件到仓库 updates/（应用内更新直连来源）
-        shell: pwsh
-        run: |
-          $bundleDir = "${{ github.workspace }}/target/release/bundle/nsis"
-          $cfg = Get-Content "crates/app/tauri.conf.json" -Raw | ConvertFrom-Json
-          New-Item -ItemType Directory -Force -Path "updates" | Out-Null
-          Get-ChildItem "$bundleDir/*-setup.exe" | Copy-Item -Destination "updates/" -Force
-          Get-ChildItem "$bundleDir/*.sig" | Copy-Item -Destination "updates/" -Force
-          Copy-Item "${{ github.workspace }}/target/release/bundle/latest.json" "updates/latest.json" -Force
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # tag 触发是游离 HEAD：先同步到远端最新 main，再提交避免非快进冲突
-          git fetch origin main
-          git reset --hard origin/main
-          git add updates/
-          git commit -m "chore(updates): 发布 $($cfg.version) 更新文件" --quiet || echo "updates 无变化"
-          git push origin HEAD:main
-          Write-Host "updates/ 已同步："
-          Get-ChildItem "updates" | Select-Object Name, Length
 
       - name: 打包绿色版（免安装 zip）
         shell: pwsh
