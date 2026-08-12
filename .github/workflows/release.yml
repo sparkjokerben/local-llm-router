@@ -45,14 +45,22 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
         run: tauri build --bundles nsis
 
-      - name: 生成更新清单 latest.json
+      - name: 规范化产物文件名并生成更新清单 latest.json
         shell: pwsh
         run: |
           $bundleDir = "${{ github.workspace }}/target/release/bundle/nsis"
-          $exe = Get-ChildItem "$bundleDir/*-setup.exe" | Select-Object -First 1
-          $sig = (Get-Content "$($exe.FullName).sig" -Raw).Trim()
           $cfg = Get-Content "crates/app/tauri.conf.json" -Raw | ConvertFrom-Json
           $tag = "${{ github.ref_name }}"
+          # GitHub 上传资产时会把空格换成点，统一改为无空格文件名，保证 latest.json 的 URL 与资产名一致
+          $exe = Get-ChildItem "$bundleDir/*-setup.exe" | Select-Object -First 1
+          $canon = "LLM-Router_$($cfg.version)-x64-setup.exe"
+          if ($exe.Name -ne $canon) {
+            $sig = Get-ChildItem "$($exe.FullName).sig" -ErrorAction SilentlyContinue
+            Rename-Item $exe.FullName $canon
+            if ($sig) { Rename-Item $sig.FullName "$canon.sig" }
+            $exe = Get-Item "$bundleDir/$canon"
+          }
+          $sig = (Get-Content "$($exe.FullName).sig" -Raw).Trim()
           $manifest = @{
             version = $cfg.version
             notes = ""
@@ -60,7 +68,7 @@ jobs:
             platforms = @{
               "windows-x86_64" = @{
                 signature = $sig
-                url = "https://github.com/sparkjokerben/local-llm-router/releases/download/$tag/$([uri]::EscapeDataString($exe.Name))"
+                url = "https://github.com/sparkjokerben/local-llm-router/releases/download/$tag/$($exe.Name)"
               }
             }
           }
