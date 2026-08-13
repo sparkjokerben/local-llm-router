@@ -58,14 +58,40 @@ jobs:
             if ($sig) { Rename-Item $sig.FullName "$canon.sig" }
           }
 
-      - name: 生成更新清单 latest.json（下载 URL 指向 GitHub Release 资产）
+      - name: 打包绿色版（免安装 zip）
         shell: pwsh
+        run: |
+          Compress-Archive -Path "${{ github.workspace }}/target/release/llm-router-app.exe" `
+            -DestinationPath "${{ github.workspace }}/LLM-Router-portable-win-x64.zip"
+
+      - name: 创建 GitHub Release（先传安装包/签名/zip，latest.json 稍后补）
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ github.workspace }}/target/release/bundle/nsis/*-setup.exe
+            ${{ github.workspace }}/target/release/bundle/nsis/*.sig
+            ${{ github.workspace }}/LLM-Router-portable-win-x64.zip
+          generate_release_notes: true
+
+      - name: 生成更新清单 latest.json（下载走 api.github.com 稳定通道）
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           $bundleDir = "${{ github.workspace }}/target/release/bundle/nsis"
           $cfg = Get-Content "crates/app/tauri.conf.json" -Raw | ConvertFrom-Json
           $tag = "${{ github.ref_name }}"
           $exe = Get-ChildItem "$bundleDir/*-setup.exe" | Select-Object -First 1
           $sig = (Get-Content "$($exe.FullName).sig" -Raw).Trim()
+          if ($tag -like "v*") {
+            # tag 触发：release 已创建，取安装包 asset_id，下载走 api.github.com（gh 同款稳定通道）
+            $assetId = gh api "repos/sparkjokerben/local-llm-router/releases/tags/$tag" --jq ".assets[] | select(.name==\"$($exe.Name)\") | .id"
+            $downloadUrl = "https://api.github.com/repos/sparkjokerben/local-llm-router/releases/assets/$assetId"
+          } else {
+            # workflow_dispatch：无 release，用 web URL 兜底（仅 CI 产物，用户拉不到）
+            $downloadUrl = "https://github.com/sparkjokerben/local-llm-router/releases/download/$tag/$($exe.Name)"
+          }
           $manifest = @{
             version = $cfg.version
             notes = ""
@@ -73,19 +99,16 @@ jobs:
             platforms = @{
               "windows-x86_64" = @{
                 signature = $sig
-                url = "https://github.com/sparkjokerben/local-llm-router/releases/download/$tag/$($exe.Name)"
+                url = $downloadUrl
               }
             }
           }
           $manifest | ConvertTo-Json -Depth 5 | Set-Content "${{ github.workspace }}/target/release/bundle/latest.json"
           Write-Host "latest.json:"
           Get-Content "${{ github.workspace }}/target/release/bundle/latest.json"
-
-      - name: 打包绿色版（免安装 zip）
-        shell: pwsh
-        run: |
-          Compress-Archive -Path "${{ github.workspace }}/target/release/llm-router-app.exe" `
-            -DestinationPath "${{ github.workspace }}/LLM-Router-portable-win-x64.zip"
+          if ($tag -like "v*") {
+            gh release upload "$tag" "${{ github.workspace }}/target/release/bundle/latest.json"
+          }
 
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
@@ -97,14 +120,3 @@ jobs:
             ${{ github.workspace }}/target/release/bundle/latest.json
             ${{ github.workspace }}/LLM-Router-portable-win-x64.zip
           if-no-files-found: error
-
-      - name: 创建 GitHub Release（打 tag 时触发）
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            ${{ github.workspace }}/target/release/bundle/nsis/*-setup.exe
-            ${{ github.workspace }}/target/release/bundle/nsis/*.sig
-            ${{ github.workspace }}/target/release/bundle/latest.json
-            ${{ github.workspace }}/LLM-Router-portable-win-x64.zip
-          generate_release_notes: true
