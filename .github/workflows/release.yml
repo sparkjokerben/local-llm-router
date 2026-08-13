@@ -10,8 +10,29 @@ permissions:
   contents: write
 
 jobs:
-  release:
-    runs-on: windows-latest
+  build:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64
+            os: windows-latest
+            bundles: nsis
+            platform: windows-x86_64
+          - name: macOS ARM64
+            os: macos-latest
+            bundles: app,dmg
+            platform: darwin-aarch64
+          - name: macOS Intel
+            os: macos-15-intel
+            bundles: app,dmg
+            platform: darwin-x86_64
+          - name: Linux x86_64
+            os: ubuntu-22.04
+            bundles: deb,appimage
+            platform: linux-x86_64
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -22,7 +43,7 @@ jobs:
           cache: npm
           cache-dependency-path: ui/package-lock.json
 
-      - name: 安装 Rust（MSVC）
+      - name: 安装 Rust
         uses: dtolnay/rust-toolchain@stable
 
       - name: 缓存 Cargo 构建
@@ -37,88 +58,161 @@ jobs:
       - name: 安装 Tauri CLI
         run: npm install -g @tauri-apps/cli@^2
 
-      - name: 构建并签名 NSIS 安装版
+      - name: 安装 Linux 系统依赖
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev patchelf libfuse2
+
+      - name: 构建并签名安装包（${{ matrix.bundles }}）
         working-directory: crates/app
         env:
           # 更新签名私钥（生成后无法找回，丢失将无法发布更新）
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
-        run: tauri build --bundles nsis
+        run: tauri build --bundles ${{ matrix.bundles }}
 
-      - name: 规范化产物文件名（GitHub 上传资产会把空格换成点，统一无空格）
+      - name: 组装产物（Windows：规范化 + 绿色版 zip + 平台清单）
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $bundleDir = "${{ github.workspace }}/target/release/bundle/nsis"
           $cfg = Get-Content "crates/app/tauri.conf.json" -Raw | ConvertFrom-Json
           $exe = Get-ChildItem "$bundleDir/*-setup.exe" | Select-Object -First 1
+          # GitHub 上传资产会把空格换成点，统一无空格文件名
           $canon = "LLM-Router_$($cfg.version)-x64-setup.exe"
           if ($exe.Name -ne $canon) {
             $sig = Get-ChildItem "$($exe.FullName).sig" -ErrorAction SilentlyContinue
             Rename-Item $exe.FullName $canon
             if ($sig) { Rename-Item $sig.FullName "$canon.sig" }
           }
-
-      - name: 打包绿色版（免安装 zip）
-        shell: pwsh
-        run: |
+          $sigContent = (Get-Content "$bundleDir/$canon.sig" -Raw).Trim()
+          $dist = "${{ github.workspace }}/dist"
+          New-Item -ItemType Directory -Force $dist | Out-Null
           Compress-Archive -Path "${{ github.workspace }}/target/release/llm-router-app.exe" `
-            -DestinationPath "${{ github.workspace }}/LLM-Router-portable-win-x64.zip"
+            -DestinationPath "$dist/LLM-Router-portable-win-x64.zip"
+          Copy-Item "$bundleDir/$canon" "$bundleDir/$canon.sig" $dist
+          $meta = @{
+            platform = "${{ matrix.platform }}"
+            installer = $canon
+            signature = $sigContent
+          }
+          $meta | ConvertTo-Json | Set-Content "$dist/platform-${{ matrix.platform }}.json"
 
-      - name: 创建 GitHub Release（先传安装包/签名/zip，latest.json 稍后补）
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            ${{ github.workspace }}/target/release/bundle/nsis/*-setup.exe
-            ${{ github.workspace }}/target/release/bundle/nsis/*.sig
-            ${{ github.workspace }}/LLM-Router-portable-win-x64.zip
-          generate_release_notes: true
-
-      - name: 生成更新清单 latest.json（下载走 api.github.com 稳定通道）
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: 组装产物（macOS：规范化 dmg / 更新包 + 平台清单）
+        if: runner.os == 'macOS'
+        shell: bash
         run: |
-          $bundleDir = "${{ github.workspace }}/target/release/bundle/nsis"
-          $cfg = Get-Content "crates/app/tauri.conf.json" -Raw | ConvertFrom-Json
-          $tag = "${{ github.ref_name }}"
-          $exe = Get-ChildItem "$bundleDir/*-setup.exe" | Select-Object -First 1
-          $sig = (Get-Content "$($exe.FullName).sig" -Raw).Trim()
-          if ($tag -like "v*") {
-            # tag 触发：release 已创建，取安装包 asset_id，下载走 api.github.com（gh 同款稳定通道）
-            $filter = '.assets[] | select(.name=="{0}") | .id' -f $exe.Name
-            $assetId = gh api "repos/sparkjokerben/local-llm-router/releases/tags/$tag" --jq $filter
-            if (-not $assetId) { throw "未找到资产 $($exe.Name) 的 asset_id" }
-            $downloadUrl = "https://api.github.com/repos/sparkjokerben/local-llm-router/releases/assets/$assetId"
-          } else {
-            # workflow_dispatch：无 release，用 web URL 兜底（仅 CI 产物，用户拉不到）
-            $downloadUrl = "https://github.com/sparkjokerben/local-llm-router/releases/download/$tag/$($exe.Name)"
-          }
-          $manifest = @{
-            version = $cfg.version
-            notes = ""
-            pub_date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-            platforms = @{
-              "windows-x86_64" = @{
-                signature = $sig
-                url = $downloadUrl
-              }
-            }
-          }
-          $manifest | ConvertTo-Json -Depth 5 | Set-Content "${{ github.workspace }}/target/release/bundle/latest.json"
-          Write-Host "latest.json:"
-          Get-Content "${{ github.workspace }}/target/release/bundle/latest.json"
-          if ($tag -like "v*") {
-            gh release upload "$tag" "${{ github.workspace }}/target/release/bundle/latest.json"
-          }
+          set -euo pipefail
+          ver=$(jq -r '.version' crates/app/tauri.conf.json)
+          arch=$(uname -m); [ "$arch" = "arm64" ] && suffix=aarch64 || suffix=x64
+          bundle_root="target/release/bundle"
+          mkdir -p dist
+          # 更新产物 .app.tar.gz（同时充当绿色版），需连同 .sig 一起规范化
+          tarfile=$(find "$bundle_root" -name "*.app.tar.gz" | head -1)
+          [ -n "$tarfile" ] || { echo "未找到 .app.tar.gz 更新产物"; exit 1; }
+          canon_tar="LLM-Router_${ver}-${suffix}.app.tar.gz"
+          if [ "$(basename "$tarfile")" != "$canon_tar" ]; then
+            mv "$tarfile" "$(dirname "$tarfile")/$canon_tar"
+            mv "$tarfile.sig" "$(dirname "$tarfile")/$canon_tar.sig"
+          fi
+          # dmg 安装版
+          dmg=$(find "$bundle_root" -name "*.dmg" | head -1)
+          [ -n "$dmg" ] || { echo "未找到 .dmg"; exit 1; }
+          canon_dmg="LLM-Router_${ver}-${suffix}.dmg"
+          if [ "$(basename "$dmg")" != "$canon_dmg" ]; then mv "$dmg" "$(dirname "$dmg")/$canon_dmg"; fi
+          cp "$(dirname "$tarfile")/$canon_tar" "$(dirname "$tarfile")/$canon_tar.sig" "$(dirname "$dmg")/$canon_dmg" dist/
+          sig=$(cat "$(dirname "$tarfile")/$canon_tar.sig")
+          jq -n --arg platform "${{ matrix.platform }}" --arg installer "$canon_tar" --arg signature "$sig" \
+            '{platform: $platform, installer: $installer, signature: $signature}' > "dist/platform-${{ matrix.platform }}.json"
+
+      - name: 组装产物（Linux：deb 安装版 + AppImage 绿色版 + 更新包 + 平台清单）
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ver=$(jq -r '.version' crates/app/tauri.conf.json)
+          bundle_root="target/release/bundle"
+          mkdir -p dist
+          # 更新产物 .AppImage.tar.gz，需连同 .sig 一起规范化
+          upfile=$(find "$bundle_root" -name "*.AppImage.tar.gz" | head -1)
+          [ -n "$upfile" ] || { echo "未找到 .AppImage.tar.gz 更新产物"; exit 1; }
+          canon_up="LLM-Router_${ver}-amd64.AppImage.tar.gz"
+          if [ "$(basename "$upfile")" != "$canon_up" ]; then
+            mv "$upfile" "$(dirname "$upfile")/$canon_up"
+            mv "$upfile.sig" "$(dirname "$upfile")/$canon_up.sig"
+          fi
+          # AppImage 绿色版
+          ai=$(find "$bundle_root" -name "*.AppImage" ! -name "*.tar.gz" | head -1)
+          [ -n "$ai" ] || { echo "未找到 .AppImage"; exit 1; }
+          canon_ai="LLM-Router_${ver}-amd64.AppImage"
+          if [ "$(basename "$ai")" != "$canon_ai" ]; then mv "$ai" "$(dirname "$ai")/$canon_ai"; fi
+          # deb 安装版
+          deb=$(find "$bundle_root" -name "*.deb" | head -1)
+          [ -n "$deb" ] || { echo "未找到 .deb"; exit 1; }
+          canon_deb="LLM-Router_${ver}-amd64.deb"
+          if [ "$(basename "$deb")" != "$canon_deb" ]; then mv "$deb" "$(dirname "$deb")/$canon_deb"; fi
+          cp "$(dirname "$upfile")/$canon_up" "$(dirname "$upfile")/$canon_up.sig" \
+             "$(dirname "$ai")/$canon_ai" "$(dirname "$deb")/$canon_deb" dist/
+          sig=$(cat "$(dirname "$upfile")/$canon_up.sig")
+          jq -n --arg platform "${{ matrix.platform }}" --arg installer "$canon_up" --arg signature "$sig" \
+            '{platform: $platform, installer: $installer, signature: $signature}' > "dist/platform-${{ matrix.platform }}.json"
 
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
         with:
-          name: windows-bundles
-          path: |
-            ${{ github.workspace }}/target/release/bundle/nsis/*-setup.exe
-            ${{ github.workspace }}/target/release/bundle/nsis/*.sig
-            ${{ github.workspace }}/target/release/bundle/latest.json
-            ${{ github.workspace }}/LLM-Router-portable-win-x64.zip
+          name: bundle-${{ matrix.platform }}
+          path: dist/*
           if-no-files-found: error
+
+  release:
+    name: 创建 Release + 汇总多平台更新清单
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 下载各平台产物
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: 创建/补传 Release（排除 platform-*.json 元数据）
+        run: |
+          set -euo pipefail
+          tag="${{ github.ref_name }}"
+          files=$(find dist -maxdepth 1 -type f ! -name 'platform-*.json')
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag 已存在，仅补传资产"
+            gh release upload "$tag" $files --clobber
+          else
+            gh release create "$tag" $files --generate-notes
+          fi
+
+      - name: 生成多平台更新清单 latest.json 并上传
+        run: |
+          set -euo pipefail
+          tag="${{ github.ref_name }}"
+          repo="sparkjokerben/local-llm-router"
+          # 汇总各平台 {platform: {signature, url}}，下载 URL 走 api.github.com 稳定通道
+          platforms='{}'
+          for f in dist/platform-*.json; do
+            platform=$(jq -r '.platform' "$f")
+            installer=$(jq -r '.installer' "$f")
+            signature=$(jq -r '.signature' "$f")
+            asset_id=$(gh api "repos/$repo/releases/tags/$tag" --jq ".assets[] | select(.name==\"$installer\") | .id")
+            [ -n "$asset_id" ] || { echo "未找到资产 $installer 的 asset_id"; exit 1; }
+            url="https://api.github.com/repos/$repo/releases/assets/$asset_id"
+            platforms=$(jq --arg p "$platform" --arg s "$signature" --arg u "$url" \
+              '. + {($p): {signature: $s, url: $u}}' <<<"$platforms")
+          done
+          ver=$(jq -r '.version' crates/app/tauri.conf.json)
+          pub_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          jq -n --arg v "$ver" --arg d "$pub_date" --argjson p "$platforms" \
+            '{version: $v, notes: "", pub_date: $d, platforms: $p}' > latest.json
+          cat latest.json
+          gh release upload "$tag" latest.json --clobber

@@ -4,10 +4,14 @@
 
 无需安装任何工具链。从 [Releases](https://github.com/sparkjokerben/local-llm-router/releases) 下载：
 
-| 版本 | 文件 | 说明 |
+| 平台 | 安装版 | 绿色版（免安装） |
 |---|---|---|
-| 安装版 | `LLM Router_x.y.z_x64-setup.exe` | NSIS 安装程序，装完有开始菜单快捷方式 |
-| 绿色版 | `LLM-Router-portable-win-x64.zip` | 解压双击 `llm-router-app.exe` 即用，卸载 = 删文件夹 |
+| Windows x64 | `LLM-Router_x.y.z-x64-setup.exe`（NSIS 安装程序） | `LLM-Router-portable-win-x64.zip`（解压双击 `llm-router-app.exe` 即用，卸载 = 删文件夹） |
+| macOS Apple 芯片 | `LLM-Router_x.y.z-aarch64.dmg`（拖入"应用程序"） | `LLM-Router_x.y.z-aarch64.app.tar.gz`（解压得 `.app`，拖入"应用程序"） |
+| macOS Intel | `LLM-Router_x.y.z-x64.dmg` | `LLM-Router_x.y.z-x64.app.tar.gz` |
+| Linux x86_64 | `LLM-Router_x.y.z-amd64.deb`（`sudo apt install ./…`） | `LLM-Router_x.y.z-amd64.AppImage`（`chmod +x` 后运行，卸载 = 删文件） |
+
+> **macOS 未做 Apple 签名/公证**：首次打开请右键 →「打开」，或先执行 `xattr -cr "/Applications/LLM Router.app"` 再双击。
 
 运行后：
 
@@ -49,9 +53,30 @@ rustup default stable-x86_64-pc-windows-msvc
 
 **3. Node.js 22+**（构建前端，`winget install OpenJS.NodeJS.LTS`）
 
-**4. 仓库依赖**
+> WebView2 Runtime：Windows 11 自带；Windows 10 需确认已安装 "Microsoft Edge WebView2 Runtime"。
 
-```powershell
+**macOS 系统依赖**
+
+Xcode Command Line Tools（Tauri 编译需要，含 clang、ld 等）：
+
+```bash
+xcode-select --install
+```
+
+安装 Rust 后即可直接构建（Tauri 在 macOS 上默认以 Apple WebKit 渲染，无需额外系统库）。
+
+**Linux 系统依赖**（Debian/Ubuntu 系；webkit2gtk 版本必须为 4.1，对应 Tauri v2）
+
+```bash
+sudo apt-get update
+sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev patchelf
+```
+
+> 打包 AppImage 若提示 FUSE 相关错误，安装 `libfuse2`。Rust 用 `rustup toolchain install stable` 默认工具链即可。
+
+**4. 仓库依赖（三平台通用）**
+
+```bash
 # 前端依赖
 cd ui
 npm install
@@ -60,11 +85,9 @@ npm install
 npm install -g @tauri-apps/cli
 ```
 
-> WebView2 Runtime：Windows 11 自带；Windows 10 需确认已安装 "Microsoft Edge WebView2 Runtime"。
-
 ### 构建与测试
 
-```powershell
+```bash
 cargo build            # 首次编译约 400 个 crate，较慢属正常
 cargo test             # 路由匹配 / 配置校验 / 假上游转发测试
 cargo clippy           # lint 全绿
@@ -72,19 +95,19 @@ cargo clippy           # lint 全绿
 
 ### 开发模式（GUI 热更新）
 
-```powershell
+```bash
 cd crates/app
 npx tauri dev          # 启动 Vite(1420) + Tauri 窗口，改前端即热更新
 ```
 
-### 打包安装版
+### 打包安装版（本机平台）
 
-```powershell
+```bash
 cd crates/app
-npx tauri build        # 产物: target\release\bundle\nsis\LLM Router_x.y.z_x64-setup.exe
+npx tauri build        # Windows: bundle\nsis\…-setup.exe；macOS: bundle/dmg/…dmg；Linux: bundle/deb+appimage
 ```
 
-> 首次打包 tauri 需从 GitHub 下载 NSIS 工具链；网络不稳时可用 curl 重试手动下载到 `%LOCALAPPDATA%\tauri\NSIS\`。
+> Windows 首次打包 tauri 需从 GitHub 下载 NSIS 工具链；网络不稳时可用 curl 重试手动下载到 `%LOCALAPPDATA%\tauri\NSIS\`。
 
 ## 三、发布新版本
 
@@ -92,11 +115,11 @@ npx tauri build        # 产物: target\release\bundle\nsis\LLM Router_x.y.z_x64
 2. 推 tag：
 
 ```bash
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.1.10
+git push origin v0.1.10
 ```
 
-3. [Actions](https://github.com/sparkjokerben/local-llm-router/actions) 自动在 `windows-latest` 构建，产出**安装版（含签名）+ 绿色版 + 更新清单 latest.json** 并发布到 Releases。已安装用户的应用内更新会在启动时自动检测到新版本（应用请求携带浏览器 UA，规避部分网络环境对非浏览器 UA 的概率性拦截）。也可以手动触发 `workflow_dispatch`（只出构建产物，不建 Release）。
+3. [Actions](https://github.com/sparkjokerben/local-llm-router/actions) 自动跑**四任务矩阵**（Windows x64 / macOS ARM64 / macOS Intel / Linux x86_64），每个任务产出安装版 + 绿色版 + 更新包签名；汇总任务把各平台资产上传到 Releases 并合并生成多平台 `latest.json`（各平台下载 URL 走 `api.github.com` 稳定通道）。已安装用户的应用内更新会在启动时自动检测到新版本（请求携带浏览器 UA，规避部分网络环境对非浏览器 UA 的概率性拦截）。也可以手动触发 `workflow_dispatch`（只出构建产物，不建 Release）。
 
 ### 更新签名私钥（重要）
 
