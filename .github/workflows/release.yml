@@ -86,7 +86,9 @@ jobs:
           $sig = (Get-Content "$($exe.FullName).sig" -Raw).Trim()
           if ($tag -like "v*") {
             # tag 触发：release 已创建，取安装包 asset_id，下载走 api.github.com（gh 同款稳定通道）
-            $assetId = gh api "repos/sparkjokerben/local-llm-router/releases/tags/$tag" --jq ".assets[] | select(.name==\"$($exe.Name)\") | .id"
+            $filter = '.assets[] | select(.name=="{0}") | .id' -f $exe.Name
+            $assetId = gh api "repos/sparkjokerben/local-llm-router/releases/tags/$tag" --jq $filter
+            if (-not $assetId) { throw "未找到资产 $($exe.Name) 的 asset_id" }
             $downloadUrl = "https://api.github.com/repos/sparkjokerben/local-llm-router/releases/assets/$assetId"
           } else {
             # workflow_dispatch：无 release，用 web URL 兜底（仅 CI 产物，用户拉不到）
