@@ -91,7 +91,8 @@ jobs:
           New-Item -ItemType Directory -Force $dist | Out-Null
           Compress-Archive -Path "${{ github.workspace }}/target/release/llm-router-app.exe" `
             -DestinationPath "$dist/LLM-Router-portable-win-x64.zip"
-          Copy-Item "$bundleDir/$canon" "$bundleDir/$canon.sig" $dist
+          Copy-Item "$bundleDir/$canon" $dist
+          Copy-Item "$bundleDir/$canon.sig" $dist
           $meta = @{
             platform = "${{ matrix.platform }}"
             installer = $canon
@@ -126,7 +127,7 @@ jobs:
           jq -n --arg platform "${{ matrix.platform }}" --arg installer "$canon_tar" --arg signature "$sig" \
             '{platform: $platform, installer: $installer, signature: $signature}' > "dist/platform-${{ matrix.platform }}.json"
 
-      - name: 组装产物（Linux：deb 安装版 + AppImage 绿色版 + 更新包 + 平台清单）
+      - name: 组装产物（Linux：deb 安装版 + AppImage 绿色版/更新包 + 平台清单）
         if: runner.os == 'Linux'
         shell: bash
         run: |
@@ -134,28 +135,22 @@ jobs:
           ver=$(jq -r '.version' crates/app/tauri.conf.json)
           bundle_root="target/release/bundle"
           mkdir -p dist
-          # 更新产物 .AppImage.tar.gz，需连同 .sig 一起规范化
-          upfile=$(find "$bundle_root" -name "*.AppImage.tar.gz" | head -1)
-          [ -n "$upfile" ] || { echo "未找到 .AppImage.tar.gz 更新产物"; exit 1; }
-          canon_up="LLM-Router_${ver}-amd64.AppImage.tar.gz"
-          if [ "$(basename "$upfile")" != "$canon_up" ]; then
-            mv "$upfile" "$(dirname "$upfile")/$canon_up"
-            mv "$upfile.sig" "$(dirname "$upfile")/$canon_up.sig"
-          fi
-          # AppImage 绿色版
-          ai=$(find "$bundle_root" -name "*.AppImage" ! -name "*.tar.gz" | head -1)
+          # AppImage 即更新产物（Tauri 直接对 AppImage 生成 .sig，无 tar.gz 包装），需连同 .sig 一起规范化
+          ai=$(find "$bundle_root" -name "*.AppImage" | head -1)
           [ -n "$ai" ] || { echo "未找到 .AppImage"; exit 1; }
           canon_ai="LLM-Router_${ver}-amd64.AppImage"
-          if [ "$(basename "$ai")" != "$canon_ai" ]; then mv "$ai" "$(dirname "$ai")/$canon_ai"; fi
+          if [ "$(basename "$ai")" != "$canon_ai" ]; then
+            mv "$ai" "$(dirname "$ai")/$canon_ai"
+            mv "$ai.sig" "$(dirname "$ai")/$canon_ai.sig"
+          fi
           # deb 安装版
           deb=$(find "$bundle_root" -name "*.deb" | head -1)
           [ -n "$deb" ] || { echo "未找到 .deb"; exit 1; }
           canon_deb="LLM-Router_${ver}-amd64.deb"
           if [ "$(basename "$deb")" != "$canon_deb" ]; then mv "$deb" "$(dirname "$deb")/$canon_deb"; fi
-          cp "$(dirname "$upfile")/$canon_up" "$(dirname "$upfile")/$canon_up.sig" \
-             "$(dirname "$ai")/$canon_ai" "$(dirname "$deb")/$canon_deb" dist/
-          sig=$(cat "$(dirname "$upfile")/$canon_up.sig")
-          jq -n --arg platform "${{ matrix.platform }}" --arg installer "$canon_up" --arg signature "$sig" \
+          cp "$(dirname "$ai")/$canon_ai" "$(dirname "$ai")/$canon_ai.sig" "$(dirname "$deb")/$canon_deb" dist/
+          sig=$(cat "$(dirname "$ai")/$canon_ai.sig")
+          jq -n --arg platform "${{ matrix.platform }}" --arg installer "$canon_ai" --arg signature "$sig" \
             '{platform: $platform, installer: $installer, signature: $signature}' > "dist/platform-${{ matrix.platform }}.json"
 
       - name: 上传构建产物
