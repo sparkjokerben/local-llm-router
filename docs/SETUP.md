@@ -69,10 +69,10 @@ xcode-select --install
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev patchelf
+sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev patchelf libayatana-appindicator3-dev
 ```
 
-> 打包 AppImage 若提示 FUSE 相关错误，安装 `libfuse2`。Rust 用 `rustup toolchain install stable` 默认工具链即可。
+> 打包 AppImage 若提示 FUSE 相关错误，安装 `libfuse2`。`libayatana-appindicator3-dev` 是系统托盘图标所需（应用关窗常驻托盘依赖它）。Rust 用 `rustup toolchain install stable` 默认工具链即可。
 
 **4. 仓库依赖（三平台通用）**
 
