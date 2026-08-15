@@ -23,8 +23,9 @@
   api.deepseek.com    dashscope.aliyuncs.com   open.bigmodel.cn
 ```
 
-- **路由匹配**：按 Claude Code 发来的 `model` 字符串精确匹配 → 提供商；`*` 兜底；支持 `[1M]` 上下文后缀剥离（`deepseek-v4-flash[1M]` 命中 `deepseek-v4-flash`）。
+- **路由匹配**：按 Claude Code 发来的 `model` 字符串精确匹配 → 提供商；`*` 兜底；支持 `[1M]` 上下文后缀剥离（`deepseek-v4-flash[1M]` 命中 `deepseek-v4-flash`）；路由列表可在「路由」页拖拽 / 上下按钮手动排序（匹配按列表顺序 first-match）。
 - **上游模型列表**：Anthropic 兼容端点一般不提供模型列表，网关自动尝试 `{base_url}/v1/models` 及其变体拉取（DeepSeek 实测可用），也支持在提供商配置里指定 `models_url`。
+- **后台运行**：关闭窗口默认最小化到系统托盘（可关），网关持续在后台服务；可选开机自启，登录后自动后台运行。
 - **安全**：仅监听 `127.0.0.1`；禁止重定向（防止 key 泄漏到重定向目标）；密钥直接写入本地配置文件（不污染环境变量）；GUI 全程掩码显示。
 
 ## 快速开始
@@ -77,7 +78,9 @@
   "routes": [
     { "model": "deepseek-v4-flash",   "provider": "deepseek" },
     { "model": "*",                   "provider": "deepseek" }  // 兜底
-  ]
+  ],
+  "close_to_tray": true,             // 关闭窗口时最小化到系统托盘
+  "auto_start": false                // 登录后开机自启
 }
 ```
 
@@ -111,7 +114,7 @@ cd crates/app && npx tauri build   # 打包（本机平台：Windows NSIS / macO
 推 tag 即触发**三平台矩阵构建**（Windows x64 / macOS ARM64+Intel / Linux x86_64），自动发布各平台安装版 + 绿色版 + 合并后的多平台更新清单：
 
 ```bash
-git tag v0.1.10 && git push origin v0.1.10
+git tag v0.1.11 && git push origin v0.1.11
 ```
 
 工作流 [.github/workflows/release.yml](.github/workflows/release.yml)：

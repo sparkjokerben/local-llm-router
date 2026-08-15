@@ -14,5 +14,7 @@
     { "model": "qwen3.5-plus", "provider": "qwen" },
     { "model": "glm-5", "provider": "glm" },
     { "model": "*", "provider": "deepseek" }
-  ]
+  ],
+  "close_to_tray": true,
+  "auto_start": false
 }

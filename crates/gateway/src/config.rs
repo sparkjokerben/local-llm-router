@@ -11,6 +11,10 @@ pub fn default_port() -> u16 {
     8338
 }
 
+fn default_true() -> bool {
+    true
+}
+
 /// How the provider expects its API key: `Authorization: Bearer` or `x-api-key`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
@@ -72,6 +76,12 @@ pub struct Config {
     pub providers: Vec<Provider>,
     #[serde(default)]
     pub routes: Vec<Route>,
+    /// 关闭窗口时最小化到系统托盘（默认开启）。
+    #[serde(default = "default_true")]
+    pub close_to_tray: bool,
+    /// 登录后开机自启动（默认关闭）。
+    #[serde(default)]
+    pub auto_start: bool,
 }
 
 impl fmt::Debug for Config {
@@ -211,6 +221,21 @@ mod tests {
         )
         .unwrap();
         assert!(cfg.validate().is_err());
+    }
+
+    #[test]
+    fn old_config_without_new_fields_loads_with_defaults() {
+        let cfg: Config = serde_json::from_str(
+            r#"{
+                "host": "127.0.0.1",
+                "port": 8338,
+                "providers": [{ "id": "p", "name": "P", "base_url": "https://x.com", "api_key": "k" }],
+                "routes": [{ "model": "m", "provider": "p" }]
+            }"#,
+        )
+        .unwrap();
+        assert!(cfg.close_to_tray);
+        assert!(!cfg.auto_start);
     }
 
     #[test]

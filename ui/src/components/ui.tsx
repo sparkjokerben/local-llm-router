@@ -27,6 +27,8 @@ export function Button({
   disabled,
   className,
   type = "button",
+  title,
+  ariaLabel,
 }: {
   children: ReactNode;
   onClick?: () => void;
@@ -34,6 +36,8 @@ export function Button({
   disabled?: boolean;
   className?: string;
   type?: "button" | "submit";
+  title?: string;
+  ariaLabel?: string;
 }) {
   const styles: Record<ButtonVariant, string> = {
     primary:
@@ -47,6 +51,8 @@ export function Button({
   return (
     <button
       type={type}
+      title={title}
+      aria-label={ariaLabel}
       onClick={onClick}
       disabled={disabled}
       className={cls(
@@ -186,5 +192,36 @@ export function Toast({ message }: { message: string | null }) {
         {message}
       </div>
     </div>
+  );
+}
+
+export function Switch({
+  checked,
+  onChange,
+  disabled,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={cls(
+        "relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+        checked ? "bg-violet-500" : "bg-white/10",
+      )}
+    >
+      <span
+        className={cls(
+          "absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
+          checked && "translate-x-5",
+        )}
+      />
+    </button>
   );
 }

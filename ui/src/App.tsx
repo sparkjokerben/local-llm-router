@@ -2,7 +2,15 @@ import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import type { Update } from "@tauri-apps/plugin-updater";
 import type { Config, StatusInfo } from "./types";
-import { checkForUpdate, getConfig, getStatus, installUpdate, saveConfig, startGateway } from "./lib/api";
+import {
+  checkForUpdate,
+  getConfig,
+  getStatus,
+  installUpdate,
+  saveConfig,
+  saveSettings as apiSaveSettings,
+  startGateway,
+} from "./lib/api";
 import { ProvidersPage } from "./pages/Providers";
 import { RoutesPage } from "./pages/Routes";
 import { IntegrationPage } from "./pages/Integration";
@@ -33,6 +41,8 @@ const SAMPLE: Config = {
     },
   ],
   routes: [{ model: "*", provider: "deepseek" }],
+  close_to_tray: true,
+  auto_start: false,
 };
 
 export default function App() {
@@ -90,6 +100,16 @@ export default function App() {
   const initConfig = async () => {
     await persist(SAMPLE);
   };
+
+  // 运行设置独立于 persist：不走 validate/网关重启，空配置时也能切换
+  const saveSettings = useCallback(
+    async (closeToTray: boolean, autoStart: boolean) => {
+      await apiSaveSettings(closeToTray, autoStart);
+      setConfig((c) => (c ? { ...c, close_to_tray: closeToTray, auto_start: autoStart } : c));
+      showToast("设置已保存");
+    },
+    [showToast],
+  );
 
   if (loading) {
     return (
@@ -211,7 +231,14 @@ export default function App() {
               ) : page === "routes" ? (
                 <RoutesPage config={config} persist={persist} />
               ) : page === "integration" ? (
-                <IntegrationPage status={status} refresh={refreshStatus} checkUpdates={checkUpdates} />
+                <IntegrationPage
+                  status={status}
+                  refresh={refreshStatus}
+                  checkUpdates={checkUpdates}
+                  closeToTray={config.close_to_tray}
+                  autoStart={config.auto_start}
+                  onSettings={saveSettings}
+                />
               ) : (
                 <LogsPage />
               )}

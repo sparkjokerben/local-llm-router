@@ -6,6 +6,8 @@ import type { AuthType, Config, StatusInfo } from "../types";
 
 export const getConfig = () => invoke<Config | null>("get_config");
 export const saveConfig = (cfg: Config) => invoke<void>("save_config", { cfg });
+export const saveSettings = (closeToTray: boolean, autoStart: boolean) =>
+  invoke<void>("save_settings", { closeToTray, autoStart });
 export const startGateway = () => invoke<void>("start_gateway");
 export const getStatus = () => invoke<StatusInfo>("get_status");
 export const importCcswitch = () => invoke<string>("import_ccswitch");

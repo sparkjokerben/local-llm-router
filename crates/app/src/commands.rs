@@ -1,7 +1,9 @@
 use crate::AppState;
 use gateway::Config;
 use serde::Serialize;
+use std::sync::atomic::Ordering;
 use tauri::State;
+use tauri_plugin_autostart::ManagerExt;
 
 #[derive(Serialize)]
 pub struct StatusInfo {
@@ -23,12 +25,48 @@ pub fn get_config(state: State<AppState>) -> Result<Option<Config>, String> {
 
 /// Validate + persist config; restart the embedded gateway if it is running.
 #[tauri::command]
-pub async fn save_config(state: State<'_, AppState>, cfg: Config) -> Result<(), String> {
+pub async fn save_config(state: State<'_, AppState>, app: tauri::AppHandle, cfg: Config) -> Result<(), String> {
     cfg.validate().map_err(|e| e.to_string())?;
     cfg.save(&state.config_path).map_err(|e| e.to_string())?;
+    sync_settings(&app, &state, &cfg)?;
     if state.gateway.is_running() {
         state.gateway.stop();
         state.gateway.start(cfg).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// 只改「运行设置」两个字段。不 validate、不重启网关（空配置时开关也能生效）。
+/// 文件缺失时用 sample 兜底；文件存在但损坏时直接报错，避免覆盖用户数据。
+#[tauri::command]
+pub fn save_settings(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    close_to_tray: bool,
+    auto_start: bool,
+) -> Result<(), String> {
+    let mut cfg = if state.config_path.exists() {
+        Config::load(&state.config_path).map_err(|e| e.to_string())?
+    } else {
+        gateway::sample()
+    };
+    cfg.close_to_tray = close_to_tray;
+    cfg.auto_start = auto_start;
+    cfg.save(&state.config_path).map_err(|e| e.to_string())?;
+    sync_settings(&app, &state, &cfg)
+}
+
+/// 把运行设置同步进内存状态；开机自启仅在值变化时才写 OS，
+/// 避免每次保存路由都写注册表，也避免 autostart 后端报错拖垮路由保存。
+fn sync_settings(app: &tauri::AppHandle, state: &AppState, cfg: &Config) -> Result<(), String> {
+    state.close_to_tray.store(cfg.close_to_tray, Ordering::Relaxed);
+    if state.auto_start.swap(cfg.auto_start, Ordering::Relaxed) != cfg.auto_start {
+        let r = if cfg.auto_start {
+            app.autolaunch().enable()
+        } else {
+            app.autolaunch().disable()
+        };
+        r.map_err(|e| e.to_string())?;
     }
     Ok(())
 }

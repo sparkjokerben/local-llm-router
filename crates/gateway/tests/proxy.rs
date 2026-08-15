@@ -56,7 +56,7 @@ fn state(base: &str, routes: Vec<(&str, &str)>) -> AppState {
         .into_iter()
         .map(|(model, provider)| Route { model: model.into(), provider: provider.into() })
         .collect();
-    let cfg = Config { host: "127.0.0.1".into(), port: 0, client_token: None, providers, routes };
+    let cfg = Config { host: "127.0.0.1".into(), port: 0, client_token: None, providers, routes, close_to_tray: true, auto_start: false };
     AppState::new(cfg).unwrap()
 }
 
@@ -130,7 +130,7 @@ async fn rejects_wrong_client_token() {
     let base = format!("http://{addr}");
     let providers = vec![Provider { id: "up1".into(), name: "up1".into(), base_url: base, api_key: "key-aaa".into(), auth_type: AuthType::Bearer, models_url: None }];
     let routes = vec![Route { model: "m".into(), provider: "up1".into() }];
-    let cfg = Config { host: "127.0.0.1".into(), port: 0, client_token: Some("secret".into()), providers, routes };
+    let cfg = Config { host: "127.0.0.1".into(), port: 0, client_token: Some("secret".into()), providers, routes, close_to_tray: true, auto_start: false };
     let gw = app(AppState::new(cfg).unwrap());
 
     let resp = gw.clone().oneshot(send("m", "Bearer wrong")).await.unwrap();

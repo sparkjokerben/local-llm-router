@@ -41,6 +41,8 @@ mod tests {
                 models_url: None,
             }],
             routes: vec![Route { model: "deepseek-v4-flash".into(), provider: "deepseek".into() }],
+            close_to_tray: true,
+            auto_start: false,
         }
     }
 

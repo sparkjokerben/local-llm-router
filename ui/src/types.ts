@@ -20,6 +20,8 @@ export interface Config {
   client_token: string | null;
   providers: Provider[];
   routes: Route[];
+  close_to_tray: boolean;
+  auto_start: boolean;
 }
 
 export interface StatusInfo {

@@ -1,20 +1,37 @@
 import { useState } from "react";
 import type { StatusInfo } from "../types";
 import { importCcswitch } from "../lib/api";
-import { Badge, Button, Card, cls, Spinner } from "../components/ui";
+import { Badge, Button, Card, cls, Spinner, Switch } from "../components/ui";
 
 export function IntegrationPage({
   status,
   refresh,
   checkUpdates,
+  closeToTray,
+  autoStart,
+  onSettings,
 }: {
   status: StatusInfo | null;
   refresh: () => void;
   checkUpdates: () => void;
+  closeToTray: boolean;
+  autoStart: boolean;
+  onSettings: (closeToTray: boolean, autoStart: boolean) => Promise<void>;
 }) {
   const [importing, setImporting] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [url, setUrl] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+
+  const setSetting = async (ct: boolean, as: boolean) => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await onSettings(ct, as);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const doImport = async () => {
     setImporting(true);
@@ -108,6 +125,26 @@ export function IntegrationPage({
           </p>
         ) : null}
         {err ? <p className="mt-3 text-sm text-red-400">{err}</p> : null}
+      </Card>
+
+      <Card className="p-5">
+        <h3 className="text-sm font-semibold text-white">运行设置</h3>
+        <div className="mt-4 space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm text-zinc-200">关闭时最小化到托盘</p>
+              <p className="mt-0.5 text-xs text-zinc-500">点击关闭按钮时隐藏到系统托盘，应用保持后台运行</p>
+            </div>
+            <Switch checked={closeToTray} onChange={(v) => setSetting(v, autoStart)} disabled={saving} />
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm text-zinc-200">开机自启动</p>
+              <p className="mt-0.5 text-xs text-zinc-500">登录系统后自动在后台启动应用</p>
+            </div>
+            <Switch checked={autoStart} onChange={(v) => setSetting(closeToTray, v)} disabled={saving} />
+          </div>
+        </div>
       </Card>
     </div>
   );
