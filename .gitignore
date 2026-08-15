@@ -12,6 +12,9 @@ config.json
 *.log
 .claude/
 
+# 个人 Claude Code 工作偏好（含跨项目说明，不入公共仓库）
+CLAUDE.md
+
 # tauri 构建生成的 schema
 crates/app/gen/
 
