@@ -115,8 +115,8 @@ npx tauri build        # Windows: bundle\nsis\…-setup.exe；macOS: bundle/dmg/
 2. 推 tag：
 
 ```bash
-git tag v0.1.11
-git push origin v0.1.11
+git tag v0.1.12
+git push origin v0.1.12
 ```
 
 3. [Actions](https://github.com/sparkjokerben/local-llm-router/actions) 自动跑**四任务矩阵**（Windows x64 / macOS ARM64 / macOS Intel / Linux x86_64），每个任务产出安装版 + 绿色版 + 更新包签名；汇总任务把各平台资产上传到 Releases 并合并生成多平台 `latest.json`（各平台下载 URL 走 `api.github.com` 稳定通道）。已安装用户的应用内更新会在启动时自动检测到新版本（请求携带浏览器 UA，规避部分网络环境对非浏览器 UA 的概率性拦截）。也可以手动触发 `workflow_dispatch`（只出构建产物，不建 Release）。

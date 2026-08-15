@@ -114,7 +114,7 @@ cd crates/app && npx tauri build   # 打包（本机平台：Windows NSIS / macO
 推 tag 即触发**三平台矩阵构建**（Windows x64 / macOS ARM64+Intel / Linux x86_64），自动发布各平台安装版 + 绿色版 + 合并后的多平台更新清单：
 
 ```bash
-git tag v0.1.11 && git push origin v0.1.11
+git tag v0.1.12 && git push origin v0.1.12
 ```
 
 工作流 [.github/workflows/release.yml](.github/workflows/release.yml)：
